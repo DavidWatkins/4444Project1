@@ -12,6 +12,7 @@ public class Player implements pentos.sim.Player {
     private Random gen = new Random();
     private Set<Cell> road_cells = new HashSet<Cell>();
 
+    /* Data structures for blob detection:
     private boolean[][] occupied_cells;
 
     private int max_i = 0;
@@ -19,10 +20,12 @@ public class Player implements pentos.sim.Player {
 
     private int staging_max_i = 0;
     private int staging_max_j = 0;
+    */
 
 
     public void init() { // function is called once at the beginning before play is called
-        occupied_cells = new boolean[50][50];
+        // For blob detection:
+        //occupied_cells = new boolean[50][50];
     }
     
     public Move play(Building request, Land land) {
@@ -56,12 +59,10 @@ public class Player implements pentos.sim.Player {
                 // Look at the next possible place to look for 
                 Move chosen = moves.get(placement_idx); 
 
-                // Pick a random location for the building
-                // Move chosen = moves.get(gen.nextInt(moves.size()));
-
                 // Get coordinates of building placement (position plus local building cell coordinates).
                 Set<Cell> shiftedCells = new HashSet<Cell>();
                 for (Cell x : chosen.request.rotations()[chosen.rotation]) {
+                    /* Data structures for blob detection
                     if(request.type == Building.Type.RESIDENCE) {
                         staging_max_i = max_i;
                         staging_max_j = max_j;
@@ -72,6 +73,7 @@ public class Player implements pentos.sim.Player {
                             staging_max_j = x.j+chosen.location.j;
                         }
                     }
+                    */
                     shiftedCells.add(new Cell(x.i+chosen.location.i, x.j+chosen.location.j));
                 }
 
@@ -79,9 +81,15 @@ public class Player implements pentos.sim.Player {
                 Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
                 if (roadCells != null) {
 
+                    // For the existing road algorithm
+                    chosen.road = roadCells;
+                    road_cells.addAll(roadCells);
+
                     if(request.type == Building.Type.RESIDENCE) {
 
-                        /*int island_size = checkUnusableIslands(occupied_cells, roadCells, shiftedCells);
+                        /* for blob detection
+
+                        int island_size = checkUnusableIslands(occupied_cells, roadCells, shiftedCells);
 
                         if (island_size == 4) {
 
@@ -91,15 +99,15 @@ public class Player implements pentos.sim.Player {
    
                         }*/
 
+
+                        // Generate random parks/ponds
                         Set<Cell> markedForConstruction = new HashSet<Cell>();
                         markedForConstruction.addAll(roadCells);
                         chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
                         markedForConstruction.addAll(chosen.water);
                         chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
 
-                        chosen.road = roadCells;
-                        road_cells.addAll(roadCells);
-
+                        /* Data structures for blob detection
                         for(Cell x : roadCells) {
                             occupied_cells[x.i][x.j] = true;
                         }
@@ -108,46 +116,36 @@ public class Player implements pentos.sim.Player {
                         }
                         max_i = staging_max_i;
                         max_j = staging_max_j;
+                        
 
                         System.out.format("max_i: %d\nmax_j: %d\n\n", max_i, max_j);
+                        */
                         return chosen;
 
                     } else { // Building.Type.FACTORY
-                        // Move this to if(roadCells != null) if it's not working
-                        chosen.road = roadCells;
-                        road_cells.addAll(roadCells);
+                        /* Data structures for blob detection:
                         for(Cell x : roadCells) {
                             occupied_cells[x.i][x.j] = true;
                         }
                         for(Cell x : shiftedCells) {
                             occupied_cells[x.i][x.j] = true;
                         }
+                        */
                         return chosen;
-                    }
-
-                    // for residences, build random ponds and fields connected to it
-                    /*if (request.type == Building.Type.RESIDENCE) {
-                        Set<Cell> markedForConstruction = new HashSet<Cell>();
-                        markedForConstruction.addAll(roadCells);
-                        chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                        markedForConstruction.addAll(chosen.water);
-                        chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                    }*/
-                    
+                    } 
                 }
-                else { // reject placement if building cannot be connected by road
+                else { // Reject placement if building cannot be connected by road
                     placement_idx += inc;
                     if(placement_idx < 0 || placement_idx >= moves.size()) {
                         return new Move(false);  
                     }
                 }
             }
-
-            //return new Move(false);
-
         }
     }
 
+    // Blob detection algorithm
+    /*
     private int checkUnusableIslands(Set<Cell> roads, Set<Cell> buildings) {
         
         boolean[][] new_occupied_cells = new boolean[50][50];
@@ -170,7 +168,7 @@ public class Player implements pentos.sim.Player {
 
         return 0;
 
-    }
+    }*/
     
     // build shortest sequence of road cells to connect to a set of cells b
     private Set<Cell> findShortestRoad(Set<Cell> b, Land land) {
