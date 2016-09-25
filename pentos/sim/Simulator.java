@@ -14,99 +14,162 @@ class Simulator {
 
 	private static final String root = "pentos";
 
-	public static void main(String[] args) throws Exception
-	{
-		boolean gui = false;
-		boolean gui_manual_refresh_on_cutter = false;
-		String group = "g0";
-		Class <Player> g_class = null;
-		Class <Sequencer> s_class = null;
-		String sequencer = "random";
-		long cpu_time_ms = 300 * 1000;
-		String tournament_path = null;
-		// long[] timeout = new long [] {1000, 10000, 1000};
-		long gui_refresh = 250;
+	private static class Args {
+		private boolean gui = false;
+		private boolean gui_manual_refresh_on_cutter = false;
+		private String group = "g0";
+		private Class <Player> g_class = null;
+		private Class <Sequencer> s_class = null;
+		private String sequencer = "random";
+		private long cpu_time_ms = 300 * 1000;
+		private String tournament_path = null;
+		private long gui_refresh = 250;
+		private String sequencerFile = null;
+		private boolean writeOutFile = false;
+		private String sequencerOutFilename = "";
+	}
+
+	private static Args parseCommandLineArguments(String[] args) {
+		Args argsContainer = new Args();
 		try {
 			for (int a = 0 ; a != args.length ; ++a)
 				if (args[a].equals("-g") || args[a].equals("--groups")) {
 					if (a + 1 >= args.length)
 						throw new IllegalArgumentException("Missing group name");
-					group = args[++a];
+					argsContainer.group = args[++a];
+				}
+				else if(args[a].equals("--sequencer-file")) {
+					if (a+1 >= args.length)
+						throw new IllegalArgumentException("Missing sequencer file name");
+
+					argsContainer.sequencer = "RecordedSequence";
+					argsContainer.sequencerFile = args[++a];
+				}
+				else if(args[a].equals("--sequencer-out")) {
+					if(a+1 >= args.length)
+						throw new IllegalArgumentException("Missing sequencer outfile name");
+
+					argsContainer.sequencerOutFilename = args[++a];
+					argsContainer.writeOutFile = true;
 				}
 				else if (args[a].equals("-s") || args[a].equals("--sequencer")) {
 					if (a+1 >= args.length)
 						throw new IllegalArgumentException("Missing sequencer name");
-					sequencer = args[++a];
+
+					argsContainer.sequencer = args[++a];
 				}
-				else if (args[a].equals("--gui-fps")) {
+				else if (args[a].equals("--fps")) {
 					if (++a == args.length)
 						throw new IllegalArgumentException("Missing GUI FPS");
 					double gui_fps = Double.parseDouble(args[a]);
-					gui_refresh = gui_fps > 0.0 ? (long) Math.round(1000.0 / gui_fps) : -1;
-					gui = true;
-				} else if (args[a].equals("--tournament")) {
+					argsContainer.gui_refresh = gui_fps > 0.0 ? (long) Math.round(1000.0 / gui_fps) : -1;
+					argsContainer.gui = true;
+				}
+				else if (args[a].equals("--tournament")) {
 					if (++a == args.length)
 						throw new IllegalArgumentException("Missing tournament file");
-					tournament_path = args[a];
-				} else if (args[a].equals("--gui")) gui = true;
+					argsContainer.tournament_path = args[a];
+				}
+				else if (args[a].equals("--gui"))
+					argsContainer.gui = true;
 				else if (args[a].equals("--gui-mrc"))
-					gui = gui_manual_refresh_on_cutter = true;
+					argsContainer.gui = argsContainer.gui_manual_refresh_on_cutter = true;
 				else if (args[a].equals("--verbose"))
 					log = true;
 				else throw new IllegalArgumentException("Unknown argument: " + args[a]);
-			g_class = load_player(group);
-			s_class = load_sequencer(sequencer);
+			argsContainer.g_class = load_player(argsContainer.group);
+			argsContainer.s_class = load_sequencer(argsContainer.sequencer);
 		} catch (Exception e) {
 			System.err.println("Exception during setup: " + e.getMessage());
 			e.printStackTrace();
 			System.err.println("Exiting the simulator ...");
 			System.exit(1);
 		}
-		if (tournament_path != null) {
+		return argsContainer;
+	}
+
+	public static void main(String[] args) throws Exception
+	{
+		Args argsContainer = parseCommandLineArguments(args);
+
+		if (argsContainer.tournament_path != null) {
 			System.out.close();
 			System.err.close();
-		} else if (!gui && log)
+		} else if (!argsContainer.gui && log)
 			System.err.println("GUI: disabled");
-		else if (gui_refresh < 0 && log)
+		else if (argsContainer.gui_refresh < 0 && log)
 			System.err.println("GUI: enabled  (0 FPS)");
-		else if (gui_refresh == 0 && log)
+		else if (argsContainer.gui_refresh == 0 && log)
 			System.err.println("GUI: enabled  (maximum FPS)");
 		else {
-			double gui_fps = 1000.0 / gui_refresh;
+			double gui_fps = 1000.0 / argsContainer.gui_refresh;
 			if (log)
 				System.err.println("GUI: enabled  (up to " + gui_fps + " FPS)");
 		}
 		AtomicInteger score = new AtomicInteger(0);
 		boolean timeout = false;
 		try {
-			timeout = play(group, g_class, sequencer, s_class,
-					gui, gui_manual_refresh_on_cutter,
-					gui_refresh, cpu_time_ms, score);
+			timeout = play(argsContainer.group, argsContainer.g_class, argsContainer.sequencer,
+					argsContainer.sequencerFile, argsContainer.s_class,
+					argsContainer.gui, argsContainer.gui_manual_refresh_on_cutter,
+					argsContainer.sequencerOutFilename, argsContainer.writeOutFile,
+					argsContainer.gui_refresh, argsContainer.cpu_time_ms, score);
 		} catch (Exception e) {
-			if (tournament_path != null) throw e;
+			if (argsContainer.tournament_path != null) throw e;
 			System.err.println("Exception during play: " + e.getMessage());
 			e.printStackTrace();
 			System.err.println("Exiting the simulator ...");
 			System.exit(1);
 		}
-		if (tournament_path == null) {
-			System.err.println("Player " + group + " scored " + score.get());
+		if (argsContainer.tournament_path == null) {
+			System.err.println("Player " + argsContainer.group + " scored " + score.get());
 			if (timeout)
 				System.err.println("Player timed out!");
 		} else {
-			PrintStream file = new PrintStream(new FileOutputStream(tournament_path, true));
-			file.println(group + "," + score.get() + "," + (timeout == true ? "yes" : "no"));
+			PrintStream file = new PrintStream(new FileOutputStream(argsContainer.tournament_path, true));
+			file.println(argsContainer.group + "," + score.get() + "," + (timeout == true ? "yes" : "no"));
 			file.close();
 		}
 		System.exit(0);
 	}
 
+	private static String getBuildingLine(Building request) {
+		String out = "";
+		if(request.getType().equals(Building.Type.FACTORY)) {
+			out += "FACTORY ";
+			int rowMin = Integer.MAX_VALUE, rowMax = Integer.MIN_VALUE, colMin = Integer.MAX_VALUE,
+					colMax = Integer.MIN_VALUE;
+
+			for(Cell temp : request) {
+				rowMin = (temp.i < rowMin) ? temp.i : rowMin;
+				rowMax = (temp.i > rowMax) ? temp.i : rowMax;
+				colMin = (temp.j < colMin) ? temp.j : colMin;
+				colMax = (temp.j > colMax) ? temp.j : colMax;
+			}
+
+			int height = rowMax - rowMin + 1;
+			int width = colMax - colMin + 1;
+
+			out += height + " " + width;
+		} else { //Residence
+			out += "RESIDENCE ";
+			for(Cell c : request) {
+				out += c.i + "," + c.j + " ";
+			}
+		}
+
+		return out + "\n";
+	}
+
 	private static boolean play(String group,
 								Class <Player> g_class,
 								String sequencer,
+								String sequenceFile,
 								Class <Sequencer> s_class,
 								boolean gui,
 								boolean gui_manual_refresh_on_cutter,
+								String outFileName,
+								boolean writeOutToFile,
 								long gui_refresh,
 								long cpu_time_ms,
 								AtomicInteger score) throws Exception
@@ -135,11 +198,33 @@ class Simulator {
 
 				public Sequencer call() throws Exception
 				{
+					if(sequencer.equals("RecordedSequence") && sequenceFile != null) {
+						return sequencer_class.getConstructor(String.class).newInstance(sequenceFile);
+					}
 					return sequencer_class.newInstance();
 				}
 			}, cpu_time_ms);
 		} catch (TimeoutException e) {return true;}
 
+		//Generate outfile writer
+		BufferedWriter bw = null;
+		if(writeOutToFile) {
+			try {
+				File file = new File(outFileName);
+
+				// if file doesnt exists, then create it
+				if (!file.exists()) {
+					file.createNewFile();
+				}
+
+				FileWriter fw = new FileWriter(file.getAbsoluteFile());
+				bw = new BufferedWriter(fw);
+
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(1);
+			}
+		}
 
 		// initialise GUI
 		HTTPServer server = null;
@@ -172,7 +257,22 @@ class Simulator {
 			System.err.println("Construction begins ...");
 		do {
 			// get next build request
-			Building request = generator.next();
+			final Building request;
+			try {
+				request = generator.next();
+			} catch(EOFException e) {
+				System.out.println("Reached the end of the sequence");
+				return false;
+			} catch(UnsupportedEncodingException e) {
+				System.out.println(e.getMessage());
+				return false;
+			}
+
+			if(writeOutToFile) {
+				String buildingLine = getBuildingLine(request);
+				bw.write(buildingLine);
+			}
+
 			// call the play method of player
 			long timeout_ms = 0;
 			if (cpu_time_ms > 0) {
@@ -237,6 +337,8 @@ class Simulator {
 			gui_refresh = -1;
 			gui(server, state(group, score, timer.time(), moves, gui_refresh, -1));
 			server.close();
+			if(writeOutToFile)
+				bw.close();
 		}
 		return false;
 	}
