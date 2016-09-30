@@ -16,6 +16,8 @@ public class Player implements pentos.sim.Player {
     private boolean[][] occupied_cells;
     private boolean[][] road_map;
 
+    private int global_num_bad_blobs = 0;
+
     private int max_i = 0;
     private int max_j = 0;
 
@@ -59,7 +61,6 @@ public class Player implements pentos.sim.Player {
             Move bestMove = null;
             int min_blobs = Integer.MAX_VALUE;
             int moveCount = 0;
-            int global_num_bad_blobs = 0;
 
             while (true) {
                 // Look at the next possible place to look for 
@@ -101,10 +102,10 @@ public class Player implements pentos.sim.Player {
                 //}
                 if (roadCells != null) {
                     for (Cell x : roadCells) {
-                        if(x.i+chosen.location.i > staging_max_i) {
+                        if(x.i > staging_max_i) {
                             staging_max_i = x.i;
                         }
-                        if(x.j+chosen.location.j > staging_max_j) {
+                        if(x.j > staging_max_j) {
                             staging_max_j = x.j;
                         }
                     }
@@ -118,7 +119,7 @@ public class Player implements pentos.sim.Player {
                         int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells, land);
                         //System.out.println("Detected " + num_bad_blobs + " blobs within i: 0-" + staging_max_i + " j: 0-" + staging_max_j); 
 
-                        if (num_bad_blobs <= global_num_bad_blobs || moveCount > 24) {
+                        if (num_bad_blobs <= global_num_bad_blobs/* || moveCount > 24*/) {
                             // Update data structures for blob detection
                             for(Cell x : roadCells) {
                                 occupied_cells[x.i][x.j] = true;
@@ -130,15 +131,14 @@ public class Player implements pentos.sim.Player {
                             max_i = staging_max_i;
                             max_j = staging_max_j;
                             
-
                             //System.out.format("max_i: %d\nmax_j: %d\n\n", max_i, max_j);
                             System.out.println("Placed with " + num_bad_blobs + " blobs.");
 
                             road_cells.addAll(roadCells);
                             return chosen;
                         } else {
-                            //System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
-                            ++moveCount;
+                            System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
+                            //++moveCount;
                             if(num_bad_blobs < min_blobs) {
                                 bestMove = chosen;
                                 min_blobs = num_bad_blobs;
@@ -197,12 +197,17 @@ public class Player implements pentos.sim.Player {
                             // Update data structures for blob detection.
                             road_cells.addAll(bestMove.road);
 
-                            for(Cell x : roadCells) {
-                                occupied_cells[x.i][x.j] = true;
-                                road_map[x.i][x.j] = true;
+                            if (roadCells != null) {
+                                for(Cell x : roadCells) {
+                                    occupied_cells[x.i][x.j] = true;
+                                    road_map[x.i][x.j] = true;
+                                }
                             }
-                            for(Cell x : shiftedCells) {
-                                occupied_cells[x.i][x.j] = true;
+
+                            if (shiftedCells != null) {
+                                for(Cell x : shiftedCells) {
+                                    occupied_cells[x.i][x.j] = true;
+                                }
                             }
 
                             road_cells.addAll(bestMove.road);
@@ -359,6 +364,9 @@ public class Player implements pentos.sim.Player {
         // Count the number of unusable blobs
         int num_bad_blobs = 0;
         for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
+            if (blobsizes[cur_blob] == 0) {
+                continue;
+            }
             if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || !road_accessible[cur_blob]) {
                 ++num_bad_blobs;
             }
