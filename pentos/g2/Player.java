@@ -12,20 +12,20 @@ public class Player implements pentos.sim.Player {
     private Random gen = new Random();
     private Set<Cell> road_cells = new HashSet<Cell>();
 
-    /* Data structures for blob detection:
+    //Data structures for blob detection:
     private boolean[][] occupied_cells;
+    private boolean[][] road_map;
 
     private int max_i = 0;
     private int max_j = 0;
 
     private int staging_max_i = 0;
     private int staging_max_j = 0;
-    */
-
 
     public void init() { // function is called once at the beginning before play is called
         // For blob detection:
-        //occupied_cells = new boolean[50][50];
+        occupied_cells = new boolean[50][50];
+        road_map = new boolean[50][50];
     }
     
     public Move play(Building request, Land land) {
@@ -55,6 +55,11 @@ public class Player implements pentos.sim.Player {
                 inc = 1;
             }
 
+            // Keep track of the move with the least amount of created blobs
+            Move bestMove = null;
+            int min_blobs = Integer.MAX_VALUE;
+            int moveCount = 0;
+
             while (true) {
                 // Look at the next possible place to look for 
                 Move chosen = moves.get(placement_idx); 
@@ -62,7 +67,8 @@ public class Player implements pentos.sim.Player {
                 // Get coordinates of building placement (position plus local building cell coordinates).
                 Set<Cell> shiftedCells = new HashSet<Cell>();
                 for (Cell x : chosen.request.rotations()[chosen.rotation]) {
-                    /* Data structures for blob detection
+
+                    // Update data structures for blob detection
                     if(request.type == Building.Type.RESIDENCE) {
                         staging_max_i = max_i;
                         staging_max_j = max_j;
@@ -73,71 +79,104 @@ public class Player implements pentos.sim.Player {
                             staging_max_j = x.j+chosen.location.j;
                         }
                     }
-                    */
+        
                     shiftedCells.add(new Cell(x.i+chosen.location.i, x.j+chosen.location.j));
                 }
 
                 // Build a road to connect this building to perimeter.
-                Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
+                boolean disconnected_from_road_network = true;
+                for (Cell x : shiftedCells) {
+                    if (x.isConnected(road_cells)) {
+                        disconnected_from_road_network = false;
+                        break;
+                    }
+                }
+
+                Set<Cell> roadCells;
+                //if(disconnected_from_road_network) {
+                    roadCells = findShortestRoad(shiftedCells, land);
+                //} else {
+                //    roadCells = new HashSet<Cell>();
+                //}
                 if (roadCells != null) {
 
                     // For the existing road algorithm
                     chosen.road = roadCells;
-                    road_cells.addAll(roadCells);
 
                     if(request.type == Building.Type.RESIDENCE) {
 
-                        /* for blob detection
+                        // for blob detection
+                        int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells);
 
-                        int island_size = checkUnusableIslands(occupied_cells, roadCells, shiftedCells);
+                        if (num_bad_blobs == 0) {
+                            // Generate random parks/ponds
+                            /*Set<Cell> markedForConstruction = new HashSet<Cell>();
+                            markedForConstruction.addAll(roadCells);
+                            chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
+                            markedForConstruction.addAll(chosen.water);
+                            chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
+                            */
 
-                        if (island_size == 4) {
+                            // Update data structures for blob detection
+                            for(Cell x : roadCells) {
+                                occupied_cells[x.i][x.j] = true;
+                                road_map[x.i][x.j] = true;
+                            }
+                            for(Cell x : shiftedCells) {
+                                occupied_cells[x.i][x.j] = true;
+                            }
+                            max_i = staging_max_i;
+                            max_j = staging_max_j;
+                            
 
+                            //System.out.format("max_i: %d\nmax_j: %d\n\n", max_i, max_j);
+                            System.out.println("Placed with " + num_bad_blobs + " blobs.");
+
+                            road_cells.addAll(roadCells);
+                            return chosen;
+                        } else {
+                            System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
+                            if(num_bad_blobs < min_blobs) {
+                                bestMove = chosen;
+                                min_blobs = num_bad_blobs;
+                                System.out.println("Best new blob count: " + min_blobs);
+                            }
+
+                            placement_idx += inc;
+                            if(placement_idx < 0 || placement_idx >= moves.size()) {
+                                if(bestMove != null) {
+                                    road_cells.addAll(bestMove.road);
+                                    return bestMove;
+                                } else {
+                                    return new Move(false);    
+                                }
+                            }
                         }
-                        else if(island_size == 0 || island_size > 4) {
-                            // Move this to if(roadCells != null) if it's not working
-   
-                        }*/
-
-
-                        // Generate random parks/ponds
-                        Set<Cell> markedForConstruction = new HashSet<Cell>();
-                        markedForConstruction.addAll(roadCells);
-                        chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                        markedForConstruction.addAll(chosen.water);
-                        chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
-
-                        /* Data structures for blob detection
-                        for(Cell x : roadCells) {
-                            occupied_cells[x.i][x.j] = true;
-                        }
-                        for(Cell x : shiftedCells) {
-                            occupied_cells[x.i][x.j] = true;
-                        }
-                        max_i = staging_max_i;
-                        max_j = staging_max_j;
-                        
-
-                        System.out.format("max_i: %d\nmax_j: %d\n\n", max_i, max_j);
-                        */
-                        return chosen;
 
                     } else { // Building.Type.FACTORY
-                        /* Data structures for blob detection:
+                        // Update data structures for blob detection:
                         for(Cell x : roadCells) {
                             occupied_cells[x.i][x.j] = true;
+                            road_map[x.i][x.j] = true;
                         }
                         for(Cell x : shiftedCells) {
                             occupied_cells[x.i][x.j] = true;
                         }
-                        */
+
+                        road_cells.addAll(roadCells);
                         return chosen;
                     } 
                 }
                 else { // Reject placement if building cannot be connected by road
+                    System.out.println("Trying new roads.");
                     placement_idx += inc;
                     if(placement_idx < 0 || placement_idx >= moves.size()) {
-                        return new Move(false);  
+                        if(bestMove != null) {
+                            road_cells.addAll(bestMove.road);
+                            return bestMove;
+                        } else {
+                            return new Move(false);    
+                        }
                     }
                 }
             }
@@ -145,30 +184,149 @@ public class Player implements pentos.sim.Player {
     }
 
     // Blob detection algorithm
-    /*
-    private int checkUnusableIslands(Set<Cell> roads, Set<Cell> buildings) {
-        
+    // A blob is unusable if any of the following is true:
+    //      - is less than 5 blocks big
+    //      - there is no road access
+    //
+    // Connected component labeling
+    // 
+    //     followed the guide on this page:
+    //          http://aishack.in/tutorials/connected-component-labelling/
+    private int num_unusable_blobs(Set<Cell> roads, Set<Cell> buildings) {
+        // Create buffer to store land with the buildings of this new move.
         boolean[][] new_occupied_cells = new boolean[50][50];
+        boolean[][] new_road_map = new boolean[50][50];
+
+        // Clone the existing occupied cells.
         for (int i = 0; i < 50; ++i) {
             new_occupied_cells[i] = occupied_cells[i].clone();
+            new_road_map[i] = road_map[i].clone();
         }
+
+        // Add in the cells created by this new move.
         for(Cell x : roads) {
             new_occupied_cells[x.i][x.j] = true;
+            new_road_map[x.i][x.j] = true;
         }
         for(Cell x : buildings) {
             new_occupied_cells[x.i][x.j] = true;
         }
 
-        // Minimize the number of blobs with less than 4 unoccupied spots.
+        // Create a buffer of blob labels.
+        int[][] blob_labels = new int[50][50];
+        int next_label = 1;
+
+        // Create a tree of the labels to use in the blob detection algorithm.
+        ArrayList<UF> label_tree = new ArrayList<UF>();
+
+        // First pass (mark blobs and acknolwedge connections in the tree of labels)
         for(int i = 0; i <= staging_max_i; ++i) {
             for(int j = 0; j <= staging_max_j; ++j) {
+
+                if (new_occupied_cells[i][j] == true) {
+
+                    // Label a is the label above the current cell.
+                    int label_a = 0;
+
+                    // Label b is the label to the left of the current cell.
+                    int label_b = 0;
+
+                    if(i > 0) {
+                        label_a = blob_labels[i-1][j];
+                    }
+                    if(j > 0) {
+                        label_b = blob_labels[i][j-1];
+                    }
+
+                    // If both neighbors are occupied, create a new blob label
+                    if(label_a == 0 && label_b == 0) {
+                        blob_labels[i][j] = next_label;
+                        label_tree.add(new UF(next_label));
+                        ++next_label;
+                    } else if (label_b == 0) {
+                        blob_labels[i][j] = label_a;
+                    } else if (label_a == 0) {
+                        blob_labels[i][j] = label_b;
+                    } else {
+                        blob_labels[i][j] = Math.min(label_a, label_b);
+
+                        if(label_a == label_b) {
+                            // Combine the labels.
+                            UF.union(label_tree.get(label_a - 1), label_tree.get(label_b - 1));
+                        }
+                    }
+                }
 
             }
         }
 
-        return 0;
+        // Second pass (combine blobs using the tree of connections)
+        for(int i = 0; i <= staging_max_i; ++i) {
+            for(int j = 0; j <= staging_max_j; ++j) {
+                if(blob_labels[i][j] == 0 || label_tree.get(blob_labels[i][j] - 1).isRoot()) {
+                    // go to next pixel
+                } else {
+                    blob_labels[i][j] = label_tree.get(blob_labels[i][j] - 1).findRoot().getLabel();
+                }
+            }
+        }
 
-    }*/
+        // Make an array of blobsizes, and check whether the blob is accessible by road.
+        int potential_blob_count = next_label - 1;
+        int[] blobsizes = new int[potential_blob_count + 1]; // the size is the potential number of blobs
+        boolean[] road_accessible = new boolean[potential_blob_count + 1];
+
+        // this refers to the border of the staging area, not the map border.
+        boolean[] touches_border = new boolean[potential_blob_count + 1];
+
+        // Third pass (calculate blob size and blob accessibility, 
+        //             TODO: don't count blobs outside of the staging range)
+        for(int i = 0; i <= staging_max_i; ++i) {
+            for(int j = 0; j <= staging_max_j; ++j) {
+                int cur_blob = blob_labels[i][j];
+
+                if(cur_blob != 0) {
+                    // Increment size of this blob
+                    ++blobsizes[blob_labels[i][j]];
+
+                    if (!road_accessible[cur_blob]) {
+                        // Detect is this blob has road access.
+                        if(i == 0 || i == 49 || j == 0 || j == 49) {
+                            road_accessible[cur_blob] = true;
+                        } else {
+                            if(road_map[i-1][j]) {
+                                road_accessible[cur_blob] = true;
+                            } else if (road_map[i][j-1]) {
+                                road_accessible[cur_blob] = true;
+                            } else if (road_map[i+1][j]) {
+                                road_accessible[cur_blob] = true;
+                            } else if (road_map[i][j+1]) {
+                                road_accessible[cur_blob] = true;
+                            }
+                        }
+                    }
+
+                    if(!touches_border[cur_blob]) {
+                        if((i == staging_max_i || j == staging_max_j)) {
+                            touches_border[cur_blob] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Count the number of unusable blobs
+        int num_bad_blobs = 0;
+        for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
+            if((blobsizes[cur_blob] % 5 != 0) || !road_accessible[cur_blob]) {
+                //if((staging_max_j != 50 || staging_max_i != 50) && !touches_border[cur_blob]) {
+                    ++num_bad_blobs;
+                //}
+            }
+        }
+
+        return num_bad_blobs;
+    }
     
     // build shortest sequence of road cells to connect to a set of cells b
     private Set<Cell> findShortestRoad(Set<Cell> b, Land land) {
