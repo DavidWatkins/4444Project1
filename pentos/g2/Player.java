@@ -59,6 +59,7 @@ public class Player implements pentos.sim.Player {
             Move bestMove = null;
             int min_blobs = Integer.MAX_VALUE;
             int moveCount = 0;
+            int global_num_bad_blobs = 0;
 
             while (true) {
                 // Look at the next possible place to look for 
@@ -66,12 +67,12 @@ public class Player implements pentos.sim.Player {
 
                 // Get coordinates of building placement (position plus local building cell coordinates).
                 Set<Cell> shiftedCells = new HashSet<Cell>();
+                staging_max_i = max_i;
+                staging_max_j = max_j;
                 for (Cell x : chosen.request.rotations()[chosen.rotation]) {
 
                     // Update data structures for blob detection
                     if(request.type == Building.Type.RESIDENCE) {
-                        staging_max_i = max_i;
-                        staging_max_j = max_j;
                         if(x.i+chosen.location.i > staging_max_i) {
                             staging_max_i = x.i+chosen.location.i;
                         }
@@ -94,11 +95,19 @@ public class Player implements pentos.sim.Player {
 
                 Set<Cell> roadCells;
                 //if(disconnected_from_road_network) {
-                    roadCells = findShortestRoad(shiftedCells, land);
+                roadCells = findShortestRoad(shiftedCells, land);
                 //} else {
                 //    roadCells = new HashSet<Cell>();
                 //}
                 if (roadCells != null) {
+                    for (Cell x : roadCells) {
+                        if(x.i+chosen.location.i > staging_max_i) {
+                            staging_max_i = x.i;
+                        }
+                        if(x.j+chosen.location.j > staging_max_j) {
+                            staging_max_j = x.j;
+                        }
+                    }
 
                     // For the existing road algorithm
                     chosen.road = roadCells;
@@ -106,17 +115,10 @@ public class Player implements pentos.sim.Player {
                     if(request.type == Building.Type.RESIDENCE) {
 
                         // for blob detection
-                        int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells);
+                        int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells, land);
+                        //System.out.println("Detected " + num_bad_blobs + " blobs within i: 0-" + staging_max_i + " j: 0-" + staging_max_j); 
 
-                        if (num_bad_blobs == 0) {
-                            // Generate random parks/ponds
-                            /*Set<Cell> markedForConstruction = new HashSet<Cell>();
-                            markedForConstruction.addAll(roadCells);
-                            chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                            markedForConstruction.addAll(chosen.water);
-                            chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                            */
-
+                        if (num_bad_blobs <= global_num_bad_blobs || moveCount > 24) {
                             // Update data structures for blob detection
                             for(Cell x : roadCells) {
                                 occupied_cells[x.i][x.j] = true;
@@ -135,17 +137,36 @@ public class Player implements pentos.sim.Player {
                             road_cells.addAll(roadCells);
                             return chosen;
                         } else {
-                            System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
+                            //System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
+                            ++moveCount;
                             if(num_bad_blobs < min_blobs) {
                                 bestMove = chosen;
                                 min_blobs = num_bad_blobs;
+
                                 System.out.println("Best new blob count: " + min_blobs);
                             }
 
                             placement_idx += inc;
                             if(placement_idx < 0 || placement_idx >= moves.size()) {
                                 if(bestMove != null) {
+
+                                    for(Cell x : roadCells) {
+                                        occupied_cells[x.i][x.j] = true;
+                                        road_map[x.i][x.j] = true;
+                                    }
+                                    for(Cell x : shiftedCells) {
+                                        occupied_cells[x.i][x.j] = true;
+                                    }
+
                                     road_cells.addAll(bestMove.road);
+
+                                    global_num_bad_blobs = min_blobs;
+
+                                    max_i = staging_max_i;
+                                    max_j = staging_max_j;
+
+                                    System.out.println("Placed with " + min_blobs + " blobs.");
+
                                     return bestMove;
                                 } else {
                                     return new Move(false);    
@@ -172,8 +193,27 @@ public class Player implements pentos.sim.Player {
                     placement_idx += inc;
                     if(placement_idx < 0 || placement_idx >= moves.size()) {
                         if(bestMove != null) {
+
+                            // Update data structures for blob detection.
                             road_cells.addAll(bestMove.road);
+
+                            for(Cell x : roadCells) {
+                                occupied_cells[x.i][x.j] = true;
+                                road_map[x.i][x.j] = true;
+                            }
+                            for(Cell x : shiftedCells) {
+                                occupied_cells[x.i][x.j] = true;
+                            }
+
+                            road_cells.addAll(bestMove.road);
+
+                            max_i = staging_max_i;
+                            max_j = staging_max_j;
+
+                            global_num_bad_blobs = min_blobs;
+
                             return bestMove;
+
                         } else {
                             return new Move(false);    
                         }
@@ -192,7 +232,7 @@ public class Player implements pentos.sim.Player {
     // 
     //     followed the guide on this page:
     //          http://aishack.in/tutorials/connected-component-labelling/
-    private int num_unusable_blobs(Set<Cell> roads, Set<Cell> buildings) {
+    private int num_unusable_blobs(Set<Cell> roads, Set<Cell> buildings, Land land) {
         // Create buffer to store land with the buildings of this new move.
         boolean[][] new_occupied_cells = new boolean[50][50];
         boolean[][] new_road_map = new boolean[50][50];
@@ -220,10 +260,10 @@ public class Player implements pentos.sim.Player {
         ArrayList<UF> label_tree = new ArrayList<UF>();
 
         // First pass (mark blobs and acknolwedge connections in the tree of labels)
-        for(int i = 0; i <= staging_max_i; ++i) {
-            for(int j = 0; j <= staging_max_j; ++j) {
+        for(int i = 0; i < staging_max_i; ++i) {
+            for(int j = 0; j < staging_max_j; ++j) {
 
-                if (new_occupied_cells[i][j] == true) {
+                if (new_occupied_cells[i][j] == false) {
 
                     // Label a is the label above the current cell.
                     int label_a = 0;
@@ -261,8 +301,8 @@ public class Player implements pentos.sim.Player {
         }
 
         // Second pass (combine blobs using the tree of connections)
-        for(int i = 0; i <= staging_max_i; ++i) {
-            for(int j = 0; j <= staging_max_j; ++j) {
+        for(int i = 0; i < staging_max_i; ++i) {
+            for(int j = 0; j < staging_max_j; ++j) {
                 if(blob_labels[i][j] == 0 || label_tree.get(blob_labels[i][j] - 1).isRoot()) {
                     // go to next pixel
                 } else {
@@ -281,8 +321,8 @@ public class Player implements pentos.sim.Player {
 
         // Third pass (calculate blob size and blob accessibility, 
         //             TODO: don't count blobs outside of the staging range)
-        for(int i = 0; i <= staging_max_i; ++i) {
-            for(int j = 0; j <= staging_max_j; ++j) {
+        for(int i = 0; i < staging_max_i; ++i) {
+            for(int j = 0; j < staging_max_j; ++j) {
                 int cur_blob = blob_labels[i][j];
 
                 if(cur_blob != 0) {
@@ -306,11 +346,12 @@ public class Player implements pentos.sim.Player {
                         }
                     }
 
-                    if(!touches_border[cur_blob]) {
-                        if((i == staging_max_i || j == staging_max_j)) {
+                    if (staging_max_j != 50 || staging_max_i != 50) {
+                        if(i == staging_max_i || j == staging_max_j) {
                             touches_border[cur_blob] = true;
                         }
                     }
+                    
                 }
             }
         }
@@ -318,10 +359,8 @@ public class Player implements pentos.sim.Player {
         // Count the number of unusable blobs
         int num_bad_blobs = 0;
         for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
-            if((blobsizes[cur_blob] % 5 != 0) || !road_accessible[cur_blob]) {
-                //if((staging_max_j != 50 || staging_max_i != 50) && !touches_border[cur_blob]) {
-                    ++num_bad_blobs;
-                //}
+            if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || !road_accessible[cur_blob]) {
+                ++num_bad_blobs;
             }
         }
 
