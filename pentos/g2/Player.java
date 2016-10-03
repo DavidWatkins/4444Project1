@@ -12,6 +12,10 @@ public class Player implements pentos.sim.Player {
     private Random gen = new Random();
     private Set<Cell> road_cells = new HashSet<Cell>();
 
+    // per-turn set of cells to build
+    private HashSet<Cell> parks_to_build = new HashSet<Cell>();
+    private HashSet<Cell> water_to_build = new HashSet<Cell>();
+
     //Data structures for blob detection:
     private boolean[][] occupied_cells;
     private boolean[][] road_map;
@@ -85,21 +89,9 @@ public class Player implements pentos.sim.Player {
                     shiftedCells.add(new Cell(x.i+chosen.location.i, x.j+chosen.location.j));
                 }
 
-                // Build a road to connect this building to perimeter.
-                boolean disconnected_from_road_network = true;
-                for (Cell x : shiftedCells) {
-                    if (x.isConnected(road_cells)) {
-                        disconnected_from_road_network = false;
-                        break;
-                    }
-                }
-
                 Set<Cell> roadCells;
-                //if(disconnected_from_road_network) {
+
                 roadCells = findShortestRoad(shiftedCells, land);
-                //} else {
-                //    roadCells = new HashSet<Cell>();
-                //}
                 if (roadCells != null) {
                     for (Cell x : roadCells) {
                         if(x.i > staging_max_i) {
@@ -119,15 +111,15 @@ public class Player implements pentos.sim.Player {
                         int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells, land);
                         //System.out.println("Detected " + num_bad_blobs + " blobs within i: 0-" + staging_max_i + " j: 0-" + staging_max_j); 
 
+                        chosen.water = (HashSet) water_to_build.clone();
+                        chosen.park = (HashSet) parks_to_build.clone();
+
                         if (num_bad_blobs <= global_num_bad_blobs/* || moveCount > 24*/) {
                             // Update data structures for blob detection
                             for(Cell x : roadCells) {
-                                occupied_cells[x.i][x.j] = true;
                                 road_map[x.i][x.j] = true;
                             }
-                            for(Cell x : shiftedCells) {
-                                occupied_cells[x.i][x.j] = true;
-                            }
+
                             max_i = staging_max_i;
                             max_j = staging_max_j;
                             
@@ -136,14 +128,34 @@ public class Player implements pentos.sim.Player {
 
                             road_cells.addAll(roadCells);
                             return chosen;
+                        } else if (moveCount > 250) {
+                            if(bestMove != null) {
+
+                                for(Cell x : roadCells) {
+                                    road_map[x.i][x.j] = true;
+                                }
+
+                                road_cells.addAll(bestMove.road);
+
+                                global_num_bad_blobs = min_blobs;
+
+                                max_i = staging_max_i;
+                                max_j = staging_max_j;
+
+                                System.out.println("Placed with " + min_blobs + " blobs.");
+
+                                return bestMove;
+                            } else {
+                                return new Move(false);    
+                            }
                         } else {
-                            System.out.println("Trying move #" + (++moveCount) + "/" + moves.size());
-                            //++moveCount;
+                            System.out.println("Next move #" + (++moveCount) + "/" + moves.size());
+
                             if(num_bad_blobs < min_blobs) {
                                 bestMove = chosen;
                                 min_blobs = num_bad_blobs;
 
-                                System.out.println("Best new blob count: " + min_blobs);
+                                //System.out.println("Best new blob count: " + min_blobs);
                             }
 
                             placement_idx += inc;
@@ -153,9 +165,6 @@ public class Player implements pentos.sim.Player {
                                     for(Cell x : roadCells) {
                                         occupied_cells[x.i][x.j] = true;
                                         road_map[x.i][x.j] = true;
-                                    }
-                                    for(Cell x : shiftedCells) {
-                                        occupied_cells[x.i][x.j] = true;
                                     }
 
                                     road_cells.addAll(bestMove.road);
@@ -244,8 +253,13 @@ public class Player implements pentos.sim.Player {
 
         // Clone the existing occupied cells.
         for (int i = 0; i < 50; ++i) {
-            new_occupied_cells[i] = occupied_cells[i].clone();
             new_road_map[i] = road_map[i].clone();
+        }
+
+        for (int i = 0; i < 50; ++i) {
+            for (int j = 0; j < 50; ++j) {
+                new_occupied_cells[i][j] = !land.unoccupied(i, j);
+            }
         }
 
         // Add in the cells created by this new move.
@@ -339,20 +353,20 @@ public class Player implements pentos.sim.Player {
                         if(i == 0 || i == 49 || j == 0 || j == 49) {
                             road_accessible[cur_blob] = true;
                         } else {
-                            if(road_map[i-1][j]) {
+                            if(new_road_map[i-1][j]) {
                                 road_accessible[cur_blob] = true;
-                            } else if (road_map[i][j-1]) {
+                            } else if (new_road_map[i][j-1]) {
                                 road_accessible[cur_blob] = true;
-                            } else if (road_map[i+1][j]) {
+                            } else if (new_road_map[i+1][j]) {
                                 road_accessible[cur_blob] = true;
-                            } else if (road_map[i][j+1]) {
+                            } else if (new_road_map[i][j+1]) {
                                 road_accessible[cur_blob] = true;
                             }
                         }
                     }
 
                     if (staging_max_j != 50 || staging_max_i != 50) {
-                        if(i == staging_max_i || j == staging_max_j) {
+                        if(i == staging_max_i - 1 || j == staging_max_j - 1) {
                             touches_border[cur_blob] = true;
                         }
                     }
@@ -361,13 +375,31 @@ public class Player implements pentos.sim.Player {
             }
         }
 
+        parks_to_build.clear();
+        water_to_build.clear();
+        boolean build_parks_next = true;
+
         // Count the number of unusable blobs
         int num_bad_blobs = 0;
         for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
             if (blobsizes[cur_blob] == 0) {
                 continue;
+            } if ((blobsizes[cur_blob] == 4)) { // if the blobs created are the size of a field or pond, add it
+                for(int i = 0; i < staging_max_i; ++i) {
+                    for(int j = 0; j < staging_max_j; ++j) {
+                        if (blob_labels[i][j] == cur_blob) {
+                            if(build_parks_next) {
+                                parks_to_build.add(new Cell(i, j));
+                            } else {
+                                water_to_build.add(new Cell(i, j));
+                            }
+
+                        }
+                    }
+                }
+                build_parks_next = !build_parks_next;
             }
-            if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || !road_accessible[cur_blob]) {
+            else if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || (!road_accessible[cur_blob] && !touches_border[cur_blob])) {
                 ++num_bad_blobs;
             }
         }
