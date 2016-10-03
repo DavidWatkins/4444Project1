@@ -108,6 +108,7 @@ public class Player implements pentos.sim.Player {
                     if(request.type == Building.Type.RESIDENCE) {
 
                         // for blob detection
+                        System.out.println("Checking for blobs with i:" + staging_max_i + " j:" + staging_max_j);
                         int num_bad_blobs = num_unusable_blobs(roadCells, shiftedCells, land);
                         //System.out.println("Detected " + num_bad_blobs + " blobs within i: 0-" + staging_max_i + " j: 0-" + staging_max_j); 
 
@@ -131,7 +132,7 @@ public class Player implements pentos.sim.Player {
                         } else if (moveCount > 250) {
                             if(bestMove != null) {
 
-                                for(Cell x : roadCells) {
+                                for(Cell x : bestMove.road) {
                                     road_map[x.i][x.j] = true;
                                 }
 
@@ -162,7 +163,7 @@ public class Player implements pentos.sim.Player {
                             if(placement_idx < 0 || placement_idx >= moves.size()) {
                                 if(bestMove != null) {
 
-                                    for(Cell x : roadCells) {
+                                    for(Cell x : bestMove.road) {
                                         occupied_cells[x.i][x.j] = true;
                                         road_map[x.i][x.j] = true;
                                     }
@@ -366,7 +367,7 @@ public class Player implements pentos.sim.Player {
                     }
 
                     if (staging_max_j != 50 || staging_max_i != 50) {
-                        if(i == staging_max_i - 1 || j == staging_max_j - 1) {
+                        if(i == staging_max_i || j == staging_max_j) {
                             touches_border[cur_blob] = true;
                         }
                     }
@@ -384,7 +385,7 @@ public class Player implements pentos.sim.Player {
         for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
             if (blobsizes[cur_blob] == 0) {
                 continue;
-            } if ((blobsizes[cur_blob] == 4)) { // if the blobs created are the size of a field or pond, add it
+            } /*if ((blobsizes[cur_blob] == 4)) { // if the blobs created are the size of a field or pond, add it
                 for(int i = 0; i < staging_max_i; ++i) {
                     for(int j = 0; j < staging_max_j; ++j) {
                         if (blob_labels[i][j] == cur_blob) {
@@ -398,7 +399,7 @@ public class Player implements pentos.sim.Player {
                     }
                 }
                 build_parks_next = !build_parks_next;
-            }
+            }*/
             else if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || (!road_accessible[cur_blob] && !touches_border[cur_blob])) {
                 ++num_bad_blobs;
             }
