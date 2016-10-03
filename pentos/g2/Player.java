@@ -238,6 +238,8 @@ public class Player implements pentos.sim.Player {
         }
     }
 
+
+    private boolean build_parks_next = true;
     // Blob detection algorithm
     // A blob is unusable if any of the following is true:
     //      - is less than 5 blocks big
@@ -247,6 +249,8 @@ public class Player implements pentos.sim.Player {
     // 
     //     followed the guide on this page:
     //          http://aishack.in/tutorials/connected-component-labelling/
+    //
+    //  The algorithm also finds blobs of size 4 and builds a park or pond in them.
     private int num_unusable_blobs(Set<Cell> roads, Set<Cell> buildings, Land land) {
         // Create buffer to store land with the buildings of this new move.
         boolean[][] new_occupied_cells = new boolean[50][50];
@@ -366,7 +370,7 @@ public class Player implements pentos.sim.Player {
                         }
                     }
 
-                    if (staging_max_j != 50 || staging_max_i != 50) {
+                    if (staging_max_j != 49 || staging_max_i != 49) {
                         if(i == staging_max_i || j == staging_max_j) {
                             touches_border[cur_blob] = true;
                         }
@@ -378,14 +382,13 @@ public class Player implements pentos.sim.Player {
 
         parks_to_build.clear();
         water_to_build.clear();
-        boolean build_parks_next = true;
 
         // Count the number of unusable blobs
         int num_bad_blobs = 0;
         for (int cur_blob = 1; cur_blob <= potential_blob_count; ++cur_blob) {
             if (blobsizes[cur_blob] == 0) {
                 continue;
-            } /*if ((blobsizes[cur_blob] == 4)) { // if the blobs created are the size of a field or pond, add it
+            } if ((blobsizes[cur_blob] == 4) && !touches_border[cur_blob]) { // if the blobs created are the size of a field or pond, add it
                 for(int i = 0; i <= staging_max_i; ++i) {
                     for(int j = 0; j <= staging_max_j; ++j) {
                         if (blob_labels[i][j] == cur_blob) {
@@ -399,7 +402,7 @@ public class Player implements pentos.sim.Player {
                     }
                 }
                 build_parks_next = !build_parks_next;
-            }*/
+            }
             else if((blobsizes[cur_blob] < 5 && !touches_border[cur_blob]) || (!road_accessible[cur_blob] && !touches_border[cur_blob])) {
                 ++num_bad_blobs;
             }
