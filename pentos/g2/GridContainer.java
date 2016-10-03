@@ -8,6 +8,7 @@ import pentos.sim.Move;
 
 import java.util.*;
 
+import static pentos.g2.BuildingEnhanced.Rotations.NINETY;
 import static pentos.g2.BuildingEnhanced.Rotations.ZERO;
 
 /**
@@ -57,7 +58,7 @@ public class GridContainer {
                 highest = roadMarker.getIndex();
             }
         }
-        return highest - 3 * height;
+        return highest - 8;//3 * height;
     }
 
     private Set<Cell> getRoadInstructions(Cell initialPosition, int length, Land land) {
@@ -81,9 +82,15 @@ public class GridContainer {
         Set<RoadMarker.BuildInstruction> validPlacements = new HashSet<>();
         Set<RoadMarker.BuildInstruction> withinTriangle = new HashSet<>();
 
+        int height = request.getHeight(ZERO);
+        int width = request.getWidth(ZERO);
+        BuildingEnhanced.Rotations rotation = ZERO;
+//        if(height < width)
+//            rotation = NINETY;
+
         //Find all valid placements of current roadmarkers
         for(RoadMarker roadMarker : roadMarkers) {
-            RoadMarker.BuildInstruction instruction = roadMarker.getNextPlacement(request, ZERO, land);
+            RoadMarker.BuildInstruction instruction = roadMarker.getNextPlacement(request, rotation, land);
             if(instruction != null)
                 validPlacements.add(instruction);
         }
@@ -103,7 +110,7 @@ public class GridContainer {
             //If no points exist in the initial validPlacements that are within the triangle, try adding a new roadMarker
             //2*height of the current request
             if(withinTriangle.isEmpty()) {
-                int nextRoadMarker = getNextRoadMarker(request.getHeight(ZERO));
+                int nextRoadMarker = getNextRoadMarker(request.getHeight(rotation));
 
                 //Check to see that we aren't out of bounds
                 //Check to see if road marker is within triangle, if not bump up triangle size
@@ -114,7 +121,7 @@ public class GridContainer {
 
                 RoadMarker roadMarker = new RoadMarker(true, nextRoadMarker);
 //                roadMarker.getValidPlacements(request, ZERO, validPlacements);
-                RoadMarker.BuildInstruction instruction = roadMarker.getNextPlacement(request, ZERO, land);
+                RoadMarker.BuildInstruction instruction = roadMarker.getNextPlacement(request, rotation, land);
                 if(instruction != null)
                     validPlacements.add(instruction);
                 roadMarkers.add(roadMarker);
@@ -123,13 +130,13 @@ public class GridContainer {
 
             //Now check to see that the tiles within the triangle are buildable. If it is buildable return it
             for(RoadMarker.BuildInstruction b : withinTriangle) {
-                if(land.buildable(request.toBuilding(), b.location)) {
+                if(land.buildable(request.toBuildingRotatedBy(rotation), b.location)) {
                     //Once we know it is buildable, we need to find a path to it from the base tile
                     //We should be checking if horizontal here, but we are ignoring that for now.
                     Set<Cell> roadPositions = getRoadInstructions(b.initialPosition, b.roadLength, land);
 
                     if(roadPositions != null) {
-                        Move newMove = new Move(true, request.toBuilding(), b.location, 0, roadPositions, new HashSet<Cell>(), new HashSet<Cell>());
+                        Move newMove = new Move(true, request.toBuildingRotatedBy(rotation), b.location, 0, roadPositions, new HashSet<Cell>(), new HashSet<Cell>());
                         updateGrid(newMove);
                         return newMove;
                     }
@@ -258,8 +265,8 @@ public class GridContainer {
                 Set<Cell> markedForConstruction = new HashSet<Cell>();
                 markedForConstruction.addAll(roadCells);
                 chosen.water = randomWalk(shiftedCells, markedForConstruction, land, 4);
-                markedForConstruction.addAll(chosen.water);
-                chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
+//                markedForConstruction.addAll(chosen.water);
+//                chosen.park = randomWalk(shiftedCells, markedForConstruction, land, 4);
 
                 updateGrid(chosen);
                 return chosen;
