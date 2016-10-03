@@ -280,8 +280,8 @@ public class Player implements pentos.sim.Player {
         ArrayList<UF> label_tree = new ArrayList<UF>();
 
         // First pass (mark blobs and acknolwedge connections in the tree of labels)
-        for(int i = 0; i < staging_max_i; ++i) {
-            for(int j = 0; j < staging_max_j; ++j) {
+        for(int i = 0; i <= staging_max_i; ++i) {
+            for(int j = 0; j <= staging_max_j; ++j) {
 
                 if (new_occupied_cells[i][j] == false) {
 
@@ -321,8 +321,8 @@ public class Player implements pentos.sim.Player {
         }
 
         // Second pass (combine blobs using the tree of connections)
-        for(int i = 0; i < staging_max_i; ++i) {
-            for(int j = 0; j < staging_max_j; ++j) {
+        for(int i = 0; i <= staging_max_i; ++i) {
+            for(int j = 0; j <= staging_max_j; ++j) {
                 if(blob_labels[i][j] == 0 || label_tree.get(blob_labels[i][j] - 1).isRoot()) {
                     // go to next pixel
                 } else {
@@ -341,8 +341,8 @@ public class Player implements pentos.sim.Player {
 
         // Third pass (calculate blob size and blob accessibility, 
         //             TODO: don't count blobs outside of the staging range)
-        for(int i = 0; i < staging_max_i; ++i) {
-            for(int j = 0; j < staging_max_j; ++j) {
+        for(int i = 0; i <= staging_max_i; ++i) {
+            for(int j = 0; j <= staging_max_j; ++j) {
                 int cur_blob = blob_labels[i][j];
 
                 if(cur_blob != 0) {
@@ -386,8 +386,8 @@ public class Player implements pentos.sim.Player {
             if (blobsizes[cur_blob] == 0) {
                 continue;
             } /*if ((blobsizes[cur_blob] == 4)) { // if the blobs created are the size of a field or pond, add it
-                for(int i = 0; i < staging_max_i; ++i) {
-                    for(int j = 0; j < staging_max_j; ++j) {
+                for(int i = 0; i <= staging_max_i; ++i) {
+                    for(int j = 0; j <= staging_max_j; ++j) {
                         if (blob_labels[i][j] == cur_blob) {
                             if(build_parks_next) {
                                 parks_to_build.add(new Cell(i, j));
