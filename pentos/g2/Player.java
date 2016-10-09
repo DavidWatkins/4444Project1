@@ -92,24 +92,76 @@ public class Player implements pentos.sim.Player {
                         shiftedCells.add(new Cell(x.i+chosen.location.i, x.j+chosen.location.j));
                     }
 
-                    // Build a road to connect this building to perimeter.
-                    Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
+                    int curr_sides = 0;
+                    boolean alreadyConnectedToRoad = false;
+                    for (Cell x : shiftedCells) {
+                        for (int i_seg = -1; i_seg <= 1; i_seg++) {
+                            for (int j_seg = -1; j_seg <= 1; j_seg++) {
+                                if (Math.abs(i_seg) == Math.abs(j_seg)) continue;
+                                int curr_i = x.i + i_seg;
+                                int curr_j = x.j + j_seg;
+                                int curr_i_actual = curr_i;
+                                int curr_j_actual = curr_j;
+                                curr_i = (int)Math.max((double)curr_i, 0.0);
+                                curr_i = (int)Math.min((double)curr_i, land.side-1);
+                                curr_j = (int)Math.max((double)curr_j, 0.0);
+                                curr_j = (int)Math.min((double)curr_j, land.side-1);
+                                Cell curr = new Cell(curr_i, curr_j);
+                                if ( ((!land.unoccupied(curr)) && (!shiftedCells.contains(curr))) ||
+                                     (isborderRoad(curr_i_actual, curr_j_actual)) )
+                                {
+                                    curr_sides++;
+                                }
 
-                    if (roadCells != null) {
-
-                        // For the existing road algorithm
-                        chosen.road = roadCells;
-                        road_cells.addAll(roadCells);
-
-                        return chosen;
+                                alreadyConnectedToRoad = (road_cells_on_board.contains(curr) || alreadyConnectedToRoad);
+                            }
+                        }
                     }
-                    else { // Reject placement if building cannot be connected by road
+                    //String s = String.format("number of current sides occupied is %d", curr_sides);
+                    //System.out.println(s);
+                    if (curr_sides <= numAdj) {
                         placement_idx += inc;
                         if(placement_idx < 0 || placement_idx >= moves.size()) {
                             printRejectedRequest(shiftedCells);
                             return new Move(false);
                         }
+                        internal_counter++;
+                        if (internal_counter > (.1 * moves.size())) {
+                            counter = moves.size();
+                            internal_counter = 0;
+                        }
+                        continue;
+                    } else {
+                        numAdj = curr_sides;
+                        internal_counter = 0;
                     }
+
+                    // Build a road to connect this building to perimeter.
+                    if (!alreadyConnectedToRoad) {
+//                    if (!alreadyConnectedToRoad) {
+                        Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
+                        if (roadCells != null) {
+
+                            // For the existing road algorithm
+                            chosen.road = roadCells;
+                            buildParkPonds = false;
+                            shiftedCells_final = shiftedCells;
+                            chosen_final = chosen;
+
+                        }
+                        else { // Reject placement if building cannot be connected by road
+                            placement_idx += inc;
+                            if(placement_idx < 0 || placement_idx >= moves.size()) {
+                                printRejectedRequest(shiftedCells);
+                                return new Move(false);
+                            }
+                        }
+                    } else {
+                        buildParkPonds = false;
+                        shiftedCells_final = shiftedCells;
+                        chosen_final = chosen;
+                    }
+                    counter++;
 
 
                 }
