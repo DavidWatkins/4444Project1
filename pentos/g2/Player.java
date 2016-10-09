@@ -61,6 +61,8 @@ public class Player implements pentos.sim.Player {
             System.out.println("YOu do not have any valid moves");
             return new Move(false);
         } else {
+
+            // if residence, build from top. if factory, buld from bottom
             int inc;
             int placement_idx;
             if(request.type == Building.Type.FACTORY) {
@@ -71,19 +73,33 @@ public class Player implements pentos.sim.Player {
                 inc = 1;
             }
 
+            // some counters to keep track of where we are and for scores
+            // create a dummy
             int numAdj = 0;
-            Set<Cell> shiftedCells_final = new HashSet<Cell>();
             Move chosen_final = new Move(false);
             int counter = 0;
             int internal_counter = 0;
+
+            //some booleans to keep track of whether we are already next to
+            // - road
+            // - pond
+            // - park
             boolean buildParkPonds = false;
             boolean alreadyConnectedToPond = false;
             boolean alreadyConnectedToPark = false;
+
+            //shifted cells
+            Set<Cell> shiftedCells_final = new HashSet<Cell>();
+
+
+            // while loop (upper bound)
             while (counter < moves.size()) {
 
                 // Look at the next possible place to look for
                 Move chosen = moves.get(placement_idx);
 
+
+                // if factory
                 if (request.type == Building.Type.FACTORY) {
 
                     // Get coordinates of building placement (position plus local building cell coordinates).
@@ -92,6 +108,9 @@ public class Player implements pentos.sim.Player {
                         shiftedCells.add(new Cell(x.i+chosen.location.i, x.j+chosen.location.j));
                     }
 
+                    // Lets find teh highest scoring bulding placement (i.e.)
+                    // a placement that touches the most desirable sides (Other
+                    // buldings, parks, ponds, roads)
                     int curr_sides = 0;
                     boolean alreadyConnectedToRoad = false;
                     for (Cell x : shiftedCells) {
@@ -112,13 +131,13 @@ public class Player implements pentos.sim.Player {
                                 {
                                     curr_sides++;
                                 }
-
+                                // see if you are already connected to a road
                                 alreadyConnectedToRoad = (road_cells_on_board.contains(curr) || alreadyConnectedToRoad);
                             }
                         }
                     }
-                    //String s = String.format("number of current sides occupied is %d", curr_sides);
-                    //System.out.println(s);
+
+                    // update the score
                     if (curr_sides <= numAdj) {
                         placement_idx += inc;
                         if(placement_idx < 0 || placement_idx >= moves.size()) {
@@ -166,7 +185,7 @@ public class Player implements pentos.sim.Player {
 
                 }
 
-
+                // if residence
                 if ((request.type == Building.Type.RESIDENCE)) {
 
 
@@ -179,6 +198,8 @@ public class Player implements pentos.sim.Player {
                     boolean alreadyConnectedToRoad = false;
                     alreadyConnectedToPond = false;
                     alreadyConnectedToPark = false;
+
+                    // same story about the score, but with slightly different criteria
                     for (Cell x : shiftedCells) {
                         for (int i_seg = -1; i_seg <= 1; i_seg++) {
                             for (int j_seg = -1; j_seg <= 1; j_seg++) {
@@ -199,6 +220,7 @@ public class Player implements pentos.sim.Player {
                                 {
                                     curr_sides++;
                                 }
+                                //if (isborderRoad(curr_i_actual, curr_j_actual)) curr_sides++;
 
                                 alreadyConnectedToRoad = (road_cells_on_board.contains(curr) || alreadyConnectedToRoad);
                                 alreadyConnectedToPond = (land.isPond(curr) || alreadyConnectedToPond);
@@ -206,8 +228,8 @@ public class Player implements pentos.sim.Player {
                             }
                         }
                     }
-                    //String s = String.format("number of current sides occupied is %d", curr_sides);
-                    //System.out.println(s);
+
+                    // update score
                     if (curr_sides <= numAdj) {
                         placement_idx += inc;
                         if(placement_idx < 0 || placement_idx >= moves.size()) {
@@ -215,7 +237,8 @@ public class Player implements pentos.sim.Player {
                             return new Move(false);
                         }
                         internal_counter++;
-                        if (internal_counter > (.4 * moves.size())) {
+                        double limit = 0.5-(moves.size() / 10000);
+                        if (internal_counter > (limit * moves.size())) {
                             counter = moves.size();
                             internal_counter = 0;
                         }
@@ -253,13 +276,15 @@ public class Player implements pentos.sim.Player {
                     counter++;
                 }
             }
-//            if (false) {
+
+            // check if you are supposed to build a park or pond
             if (buildParkPonds) {
 
                 // Generate pseudo-random parks/ponds
                 Set<Cell> markedForConstruction = new HashSet<Cell>();
                 markedForConstruction.addAll(chosen_final.road);
 
+                // find best shape for pond
                 int topscore = 0;
                 if (alreadyConnectedToPond) topscore = 100;
                 Set<Cell> PP = new HashSet<Cell>();
@@ -271,6 +296,7 @@ public class Player implements pentos.sim.Player {
                             if (PP.contains(c)) continue;
                             if (shiftedCells_final.contains(c)) score++;
                             if (chosen_final.road.contains(c)) score--;
+                            if (land.isPond(c)) score++;
                             if (!land.unoccupied(c) &&
                                 !land.isPond(c) &&
                                 !land.isField(c) &&
@@ -287,6 +313,8 @@ public class Player implements pentos.sim.Player {
                 //chosen_final.water = randomWalk(shiftedCells_final, markedForConstruction, land, 4);
                 markedForConstruction.addAll(chosen_final.water);
 
+
+                // find best shape for park
                 topscore = 0;
                 if (alreadyConnectedToPark) topscore = 100;
                 for (int tryidx = 0; tryidx < 10; tryidx++) {
@@ -297,7 +325,7 @@ public class Player implements pentos.sim.Player {
                             if (PP.contains(c)) continue;
                             if (shiftedCells_final.contains(c)) score++;
                             if (chosen_final.road.contains(c)) score--;
-                            if (chosen_final.park.contains(c)) score++;
+                            if (land.isField(c)) score++;
                             if (!land.unoccupied(c) &&
                                 !land.isPond(c) &&
                                 !land.isField(c) &&
@@ -443,7 +471,9 @@ public class Player implements pentos.sim.Player {
 
 
 
-    // walk n consecutive cells starting from a building. Used to build a random field or pond.
+    // shape n consecutive cells starting from a building. Used to build a random field or pond.
+    // different than walk in that any shape can be formed, not just those based off walks
+    // which can exclude certain shapes based off of starting location
     private Set<Cell> randomShape(Set<Cell> b, Set<Cell> marked, Land land, int n) {
 
         ArrayList<Cell> adjCells = new ArrayList<Cell>();
