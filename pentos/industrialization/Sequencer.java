@@ -1,4 +1,4 @@
-package pentos.random;
+package pentos.industrialization;
 
 import java.util.*;
 import pentos.sim.Building;
@@ -7,7 +7,8 @@ import pentos.sim.Cell;
 public class Sequencer implements pentos.sim.Sequencer {
 
     private Random gen;
-    private final double ratio = 0.7; // ratio of residences to total number of buildings
+    private long turn = 0;
+    private double ratio = 0.99; // ratio of residences to total number of buildings
 
     public void init(Long seed) {
 	if (seed != null) 
@@ -17,6 +18,8 @@ public class Sequencer implements pentos.sim.Sequencer {
     }
     
     public Building next() {
+	turn++;
+	ratio *= 0.994;
 	if (gen.nextDouble() > ratio)
 	    return randomFactory();
 	else
@@ -40,11 +43,11 @@ public class Sequencer implements pentos.sim.Sequencer {
     }    
 
     private Building randomFactory() { // random rectangle with side length between 2 and 5 inclusive
-	Set<Cell> factory = new HashSet<Cell>();
-	int width = gen.nextInt(3);
-	int height = gen.nextInt(3);
-	for (int i=0; i<width+2; i++) {
-	    for (int j=0; j<height+2; j++) {
+	Set<Cell> factory = new HashSet<Cell>();	
+	int width = 5 - (int) Math.round(Math.floor(Math.pow(gen.nextDouble(), (double)turn/50) / 0.2));
+	int height = 5 - (int) Math.round(Math.floor(Math.pow(gen.nextDouble(), (double)turn/50) / 0.2));	
+	for (int i=0; i<width; i++) {
+	    for (int j=0; j<height; j++) {
 		factory.add(new Cell(i,j));
 	    }
 	}
