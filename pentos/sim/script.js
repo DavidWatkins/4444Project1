@@ -318,7 +318,7 @@ function ajax(version, retries, timeout)
 			if (xhr.status != 200)
 				throw "Invalid HTTP status: " + xhr.status;
 			refresh = process(xhr.responseText);
-			if (latest_version < version)
+			if (latest_version < version && paused == 0)
 				latest_version = version;
 			else
 				refresh = -1;
@@ -344,4 +344,9 @@ function ajax(version, retries, timeout)
 	xhr.send();
 }
 
+function pause() {
+    paused = (paused + 1) % 2;
+}
+
+var paused = 0;
 ajax(0, 10, 100);
