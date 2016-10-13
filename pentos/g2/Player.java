@@ -119,7 +119,8 @@ public class Player implements pentos.sim.Player {
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                if (internal_counter > (0.3 * possibleMoves.size()) && chosen_final.accept) {
+                double weight = 0.5-(possibleMoves.size() / 10000);
+                if (internal_counter > (weight * possibleMoves.size()) && chosen_final.accept) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
                 }
@@ -230,7 +231,7 @@ public class Player implements pentos.sim.Player {
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                double limit = 0.5-(possibleMoves.size() / 10000);
+                double limit = 0.6-(possibleMoves.size() / 10000);
                 if (internal_counter > (limit * possibleMoves.size())) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
@@ -275,13 +276,38 @@ public class Player implements pentos.sim.Player {
             // Generate pseudo-random parks/ponds
             Set<Cell> markedForConstruction = new HashSet<>();
             markedForConstruction.addAll(chosen_final.road);
+            markedForConstruction.addAll(getCells(chosen_final));
 
             Set<Cell> waterAttempt = findShortestPath(Cell.Type.WATER, finalCells, land, markedForConstruction);
 //            if(pond_cells.size() > 0 && waterAttempt.size() > 3) {
 
+
             // find best shape for pond
             int topscore = 0;
             if (alreadyConnectedToPond) topscore = 100;
+            boolean pondConnected = false;
+            if ((waterAttempt != null) && (waterAttempt.size() < 5)) {
+                int score = 0;
+                for (Cell PPn : waterAttempt) {
+                    for (Cell c : PPn.neighbors()) {
+                        if (waterAttempt.contains(c)) continue;
+                        if (finalCells.contains(c)) score++;
+                        if (chosen_final.road.contains(c)) score--;
+                        if (land.isField(c)) score++;
+                        if (!land.unoccupied(c) &&
+                                !land.isPond(c) &&
+                                !land.isField(c) &&
+                                !finalCells.contains(c)) score--;
+                        pondConnected = (pondConnected | land.isPond(c));
+                    }
+                }
+                if (score > topscore) {
+                    topscore = score;
+                    chosen_final.water = waterAttempt;
+                }
+            }
+            if (!pondConnected) topscore = 0;
+
             Set<Cell> PP;
             for (int tryidx = 0; tryidx < 10; tryidx++) {
                 PP = randomShape(finalCells, markedForConstruction, land, POND_SIZE);
@@ -317,6 +343,29 @@ public class Player implements pentos.sim.Player {
 //            if(field_cells.size() > 0 && fieldAttempt.size() > 3) {
             topscore = 0;
             if (alreadyConnectedToPark) topscore = 100;
+            boolean fieldConnected = false;
+            if ((fieldAttempt != null) && (fieldAttempt.size() < 5)) {
+                int score = 0;
+                for (Cell PPn : fieldAttempt) {
+                    for (Cell c : PPn.neighbors()) {
+                        if (fieldAttempt.contains(c)) continue;
+                        if (finalCells.contains(c)) score++;
+                        if (chosen_final.road.contains(c)) score--;
+                        if (land.isField(c)) score++;
+                        if (!land.unoccupied(c) &&
+                                !land.isPond(c) &&
+                                !land.isField(c) &&
+                                !finalCells.contains(c)) score--;
+                        fieldConnected = (fieldConnected | land.isField(c));
+                    }
+                }
+                if (score > topscore) {
+                    topscore = score;
+                    chosen_final.park = fieldAttempt;
+                }
+            }
+
+            if (!fieldConnected) topscore = 0;
             for (int tryidx = 0; tryidx < 10; tryidx++) {
                 PP = randomShape(finalCells, markedForConstruction, land, PARK_SIZE);
                 int score = 0;
@@ -397,7 +446,7 @@ public class Player implements pentos.sim.Player {
         for(Cell x : b) {
             if(x.i==0 || x.i==land.side-1 || x.j==0 || x.j==land.side-1) return new HashSet<Cell>();
             for(Cell y : x.neighbors()) {
-                if(road_cells.contains(y)) {
+                if(cells.contains(y)) {
                     return new HashSet<Cell>();
                 }
             }
@@ -429,6 +478,7 @@ public class Player implements pentos.sim.Player {
                 if (b.contains(x)) { // trace back through search tree to find path
                     Cell tail = p;
                     while (!b.contains(tail) && !cells.contains(tail) && !tail.equals(source)) {
+                        if (markedForConstruction.contains(tail)) return null;
                         output.add(new Cell(tail.i,tail.j));
                         tail = tail.previous;
                     }
