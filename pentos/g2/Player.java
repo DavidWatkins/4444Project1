@@ -119,7 +119,7 @@ public class Player implements pentos.sim.Player {
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                double weight = 0.5-(possibleMoves.size() / 10000);
+                double weight = 1.0-(possibleMoves.size() / 20000);
                 if (internal_counter > (weight * possibleMoves.size()) && chosen_final.accept) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
@@ -231,7 +231,7 @@ public class Player implements pentos.sim.Player {
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                double limit = 0.6-(possibleMoves.size() / 10000);
+                double limit = 1.0-(possibleMoves.size() / 20000);
                 if (internal_counter > (limit * possibleMoves.size())) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
@@ -366,6 +366,7 @@ public class Player implements pentos.sim.Player {
             }
 
             if (!fieldConnected) topscore = 0;
+
             for (int tryidx = 0; tryidx < 10; tryidx++) {
                 PP = randomShape(finalCells, markedForConstruction, land, PARK_SIZE);
                 int score = 0;
