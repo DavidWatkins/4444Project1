@@ -100,9 +100,10 @@ public class Player implements pentos.sim.Player {
                         curr_j = (int) Math.min((double) curr_j, land.side - 1);
                         Cell curr = new Cell(curr_i, curr_j);
                         if (((!land.unoccupied(curr)) && (!shiftedCells.contains(curr))) ||
-                                (isborderRoad(curr_i_actual, curr_j_actual))) {
-                            curr_sides++;
-                        }
+                            (isborderRoad(curr_i_actual, curr_j_actual))) curr_sides++;
+                        if ((road_cells_on_board.contains(curr)) && !alreadyConnectedToRoad) curr_sides--;
+
+
                         // see if you are already connected to a road
                         alreadyConnectedToRoad = (road_cells_on_board.contains(curr) || alreadyConnectedToRoad);
                     }
@@ -118,7 +119,7 @@ public class Player implements pentos.sim.Player {
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                if (internal_counter > (.1 * possibleMoves.size()) && chosen_final.accept) {
+                if (internal_counter > (0.3 * possibleMoves.size()) && chosen_final.accept) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
                 }
@@ -142,7 +143,8 @@ public class Player implements pentos.sim.Player {
                     placement_idx += inc;
                     if (placement_idx < 0 || placement_idx >= possibleMoves.size()) {
                         printRejectedRequest(shiftedCells);
-                        return new Move(false);
+                        System.out.println("REJECTION ON FACTORY BECAUSE placement_idx IS INVALID");
+                        return chosen_final;
                     }
                 }
             } else {
@@ -156,6 +158,8 @@ public class Player implements pentos.sim.Player {
             road_cells_on_board.addAll(chosen_final.road);
         }
 
+        if (chosen_final == (new Move(false)))
+            System.out.println("REJECTION ON FACTORY");
         return chosen_final;
     }
 
@@ -204,14 +208,11 @@ public class Player implements pentos.sim.Player {
                         curr_j = (int)Math.max((double)curr_j, 0.0);
                         curr_j = (int)Math.min((double)curr_j, land.side-1);
                         Cell curr = new Cell(curr_i, curr_j);
-                        if ( ((!land.unoccupied(curr)) && (!shiftedCells.contains(curr))) ||
-                                ((land.isField(curr)) && (!shiftedCells.contains(curr))) ||
-                                ((land.isPond(curr)) && (!shiftedCells.contains(curr))) ||
-                                (isborderRoad(curr_i_actual, curr_j_actual)) )
-                        {
-                            curr_sides++;
-                        }
-                        //if (isborderRoad(curr_i_actual, curr_j_actual)) curr_sides++;
+                        if ((!land.unoccupied(curr)) && (!shiftedCells.contains(curr))) curr_sides++;
+                        if (isborderRoad(curr_i_actual, curr_j_actual)) curr_sides++;
+                        //if ((road_cells_on_board.contains(curr))) curr_sides--;
+                        if ((land.isField(curr)) && !alreadyConnectedToPond) curr_sides++;
+                        if ((land.isPond(curr)) && !alreadyConnectedToPark) curr_sides++;
 
                         alreadyConnectedToRoad = (road_cells_on_board.contains(curr) || alreadyConnectedToRoad);
                         alreadyConnectedToPond = (land.isPond(curr) || alreadyConnectedToPond);
@@ -256,8 +257,7 @@ public class Player implements pentos.sim.Player {
                 else { // Reject placement if building cannot be connected by road
                     placement_idx += inc;
                     if(placement_idx < 0 || placement_idx >= possibleMoves.size()) {
-                        printRejectedRequest(shiftedCells);
-                        return new Move(false);
+                        break;
                     }
                 }
             } else {
