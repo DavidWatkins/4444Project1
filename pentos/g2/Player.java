@@ -112,14 +112,14 @@ public class Player implements pentos.sim.Player {
 
             // update the score
             if (curr_sides <= numAdj) {
-                placement_idx += inc;
+                placement_idx -= 1;
                 if (placement_idx < 0 || placement_idx >= possibleMoves.size()) {
-                    printRejectedRequest(shiftedCells);
+//                    printRejectedRequest(shiftedCells);
 //                    return new Move(false);
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                double weight = 1.0-(possibleMoves.size() / 20000);
+                double weight = 0.5-(possibleMoves.size() / 10000);
                 if (internal_counter > (weight * possibleMoves.size()) && chosen_final.accept) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
@@ -143,9 +143,9 @@ public class Player implements pentos.sim.Player {
                 } else { // Reject placement if building cannot be connected by road
                     placement_idx += inc;
                     if (placement_idx < 0 || placement_idx >= possibleMoves.size()) {
-                        printRejectedRequest(shiftedCells);
-                        System.out.println("REJECTION ON FACTORY BECAUSE placement_idx IS INVALID");
-                        return chosen_final;
+                        //printRejectedRequest(shiftedCells);
+                        //System.out.println("REJECTION ON FACTORY BECAUSE placement_idx IS INVALID");
+                        counter = possibleMoves.size();
                     }
                 }
             } else {
@@ -154,13 +154,23 @@ public class Player implements pentos.sim.Player {
             counter++;
         }
 
+        // Could not find any moves for this factory with main strategy, so just placing in next available slot.
+        if (chosen_final.accept == false) {
+            for (Move m : possibleMoves) {
+                Set<Cell> shiftedCells = getCells(m);
+                Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
+                if(roadCells != null) {
+                    chosen_final = m;
+                    chosen_final.road = roadCells;
+                }
+            }  
+        }
+
         if (chosen_final.road != null) {
             road_cells.addAll(chosen_final.road);
             road_cells_on_board.addAll(chosen_final.road);
         }
 
-        if (chosen_final == (new Move(false)))
-            System.out.println("REJECTION ON FACTORY");
         return chosen_final;
     }
 
@@ -226,12 +236,12 @@ public class Player implements pentos.sim.Player {
             if (curr_sides <= numAdj) {
                 placement_idx += inc;
                 if(placement_idx < 0 || placement_idx >= possibleMoves.size()) {
-                    printRejectedRequest(shiftedCells);
+//                    printRejectedRequest(shiftedCells);
 //                    return new Move(false);
                     counter = possibleMoves.size();
                 }
                 internal_counter++;
-                double limit = 1.0-(possibleMoves.size() / 20000);
+                double limit = 0.6-(possibleMoves.size() / 10000);
                 if (internal_counter > (limit * possibleMoves.size())) {
                     counter = possibleMoves.size();
                     internal_counter = 0;
@@ -258,6 +268,7 @@ public class Player implements pentos.sim.Player {
                 else { // Reject placement if building cannot be connected by road
                     placement_idx += inc;
                     if(placement_idx < 0 || placement_idx >= possibleMoves.size()) {
+                        counter = possibleMoves.size();
                         break;
                     }
                 }
@@ -394,6 +405,18 @@ public class Player implements pentos.sim.Player {
             //chosen_final.park = randomWalk(shiftedCells_final, markedForConstruction, land, 4);
         }
 
+        // Could not find any moves for this residence with main strategy, so just placing in next available slot.
+        if (chosen_final.accept == false) {
+            for (Move m : possibleMoves) {
+                Set<Cell> shiftedCells = getCells(m);
+                Set<Cell> roadCells = findShortestRoad(shiftedCells, land);
+                if(roadCells != null) {
+                    chosen_final = m;
+                    chosen_final.road = roadCells;
+                }
+            }  
+        }
+
         if (chosen_final.road != null) {
             road_cells.addAll(chosen_final.road);
             road_cells_on_board.addAll(chosen_final.road);
@@ -411,15 +434,13 @@ public class Player implements pentos.sim.Player {
         return chosen_final;
     }
 
-
-
     public Move play(Building request, Land land) {
 
         ArrayList<Move> moves = getAllValidMoves(request, land);
 
         // choose a building placement at random
         if (moves.isEmpty()) { // reject if no valid placements
-            System.out.println("You do not have any valid moves");
+            System.out.println("You do not have any valid moves.");
             return new Move(false);
         }
 
@@ -563,14 +584,6 @@ public class Player implements pentos.sim.Player {
             return output;
     }
 
-
-
-
-
-
-
-
-
     // walk n consecutive cells starting from a building. Used to build a random field or pond.
     private Set<Cell> randomWalk(Set<Cell> b, Set<Cell> marked, Land land, int n) {
 
@@ -606,10 +619,6 @@ public class Player implements pentos.sim.Player {
         }
         return output;
     }
-
-
-
-
 
     // shape n consecutive cells starting from a building. Used to build a random field or pond.
     // different than walk in that any shape can be formed, not just those based off walks
@@ -659,10 +668,57 @@ public class Player implements pentos.sim.Player {
         return output;
     }
 
+    // build shortest sequence of road cells to connect to a set of cells b
+    private Set<Cell> oldFindShortestRoad(Set<Cell> b, Land land) {
+        Set<Cell> output = new HashSet<Cell>();
+        boolean[][] checked = new boolean[land.side][land.side];
+        Queue<Cell> queue = new LinkedList<Cell>();
+        // add border cells that don't have a road currently
+        Cell source = new Cell(Integer.MAX_VALUE,Integer.MAX_VALUE); // dummy cell to serve as road connector to perimeter cells
+        for (int z=0; z<land.side; z++) {
+            if (b.contains(new Cell(0,z)) || b.contains(new Cell(z,0)) || b.contains(new Cell(land.side-1,z)) || b.contains(new Cell(z,land.side-1))) //if already on border don't build any roads
+            return output;
+            if (land.unoccupied(0,z))
+            queue.add(new Cell(0,z,source));
+            if (land.unoccupied(z,0))
+            queue.add(new Cell(z,0,source));
+            if (land.unoccupied(z,land.side-1))
+            queue.add(new Cell(z,land.side-1,source));
+            if (land.unoccupied(land.side-1,z))
+            queue.add(new Cell(land.side-1,z,source));
+        }
+        // add cells adjacent to current road cells
+        for (Cell p : road_cells) {
+            for (Cell q : p.neighbors()) {
+            if (!road_cells.contains(q) && land.unoccupied(q) && !b.contains(q)) 
+                queue.add(new Cell(q.i,q.j,p)); // use tail field of cell to keep track of previous road cell during the search
+            }
+        }   
+        while (!queue.isEmpty()) {
+            Cell p = queue.remove();
+            checked[p.i][p.j] = true;
+            for (Cell x : p.neighbors()) {      
+            if (b.contains(x)) { // trace back through search tree to find path
+                Cell tail = p;
+                while (!b.contains(tail) && !road_cells.contains(tail) && !tail.equals(source)) {
+                output.add(new Cell(tail.i,tail.j));
+                tail = tail.previous;
+                }
+                if (!output.isEmpty())
+                return output;
+            }
+            else if (!checked[x.i][x.j] && land.unoccupied(x.i,x.j)) {
+                x.previous = p;
+                queue.add(x);         
+            } 
 
-
-
-
+            }
+        }
+        if (output.isEmpty() && queue.isEmpty())
+            return null;
+        else
+            return output;
+    }
 
     private void printRejectedRequest(Set<Cell> cells) {
         String s = "The coordinates of the rejected request are ";
@@ -671,6 +727,4 @@ public class Player implements pentos.sim.Player {
         }
         System.out.println(s);
     }
-
-
 }
